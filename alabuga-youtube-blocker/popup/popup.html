@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup.css">
+  <title>Alabuga YouTube Blocker</title>
+</head>
+<body>
+  <header>
+    <h1>Alabuga Blocker</h1>
+    <p class="subtitle">Пометка каналов с рекламой Алабуги из таблицы Alabuga-War-Bloggers</p>
+  </header>
+
+  <label class="toggle-row">
+    <span>Расширение включено</span>
+    <input type="checkbox" id="enabled-toggle" checked>
+  </label>
+
+  <div class="stats">
+    <div class="stat-row">
+      <span class="label">Каналов в списке</span>
+      <span class="value" id="channel-count">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="label">Видео с активной рекламой</span>
+      <span class="value" id="ad-video-count">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="label">Обновлено</span>
+      <span class="value" id="last-updated">—</span>
+    </div>
+  </div>
+
+  <button id="refresh-btn" type="button">Обновить список</button>
+  <p id="status-msg" class="status-msg" hidden></p>
+
+  <footer>
+    <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQtmYbiCts4N-LbpYey3tIsLcXhFDOYwiz-58cFaF50BE5I7lP8qifuXxb1jP7_SsyyfoDW1z3ioLNq/pubhtml#gid=1879882486" target="_blank" rel="noopener">
+      Источник: Alabuga-War-Bloggers
+    </a>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

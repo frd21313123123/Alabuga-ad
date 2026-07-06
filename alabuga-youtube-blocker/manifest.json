@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Alabuga YouTube Blocker",
+  "version": "1.1.1",
+  "description": "Помечает YouTube-каналы с рекламой Алабуги из таблицы Alabuga-War-Bloggers",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "alabuga-youtube-blocker@local",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": [
+    "https://docs.google.com/*",
+    "*://www.youtube.com/*"
+  ],
+  "background": {
+    "scripts": ["lib/csv-parser.js", "background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content/selectors.js", "content/blocker.js"],
+      "css": ["content/blocked-page.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  }
+}

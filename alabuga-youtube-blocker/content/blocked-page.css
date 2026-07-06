@@ -1,0 +1,123 @@
+.alabuga-marked-thumbnail {
+  position: relative;
+}
+
+.alabuga-marked-thumbnail-frame {
+  position: absolute;
+  z-index: 19;
+  box-sizing: border-box;
+  border: 2px solid #e85d04;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.alabuga-thumbnail-badge-host {
+  position: relative;
+}
+
+.alabuga-channel-label {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #3d1515;
+  color: #ff8a80;
+  font-family: "Roboto", "Arial", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.alabuga-ad-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(180, 30, 30, 0.92);
+  color: #fff;
+  font-family: "Roboto", "Arial", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.alabuga-ad-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  color: #b41e1e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.alabuga-ad-label {
+  margin-top: 4px;
+  padding: 2px 8px;
+  display: inline-block;
+  border-radius: 4px;
+  background: #3d1515;
+  color: #ff8a80;
+  font-family: "Roboto", "Arial", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#alabuga-warning-banner {
+  margin: 0 0 16px;
+  padding: 0;
+  width: 100%;
+}
+
+.alabuga-warning-banner__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #e85d04;
+  background: linear-gradient(135deg, #2a1212 0%, #1a1010 100%);
+  color: #f1f1f1;
+  font-family: "Roboto", "Arial", sans-serif;
+}
+
+.alabuga-warning-banner__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e85d04;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.alabuga-warning-banner__content strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 15px;
+  color: #ffab91;
+}
+
+.alabuga-warning-banner__content p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #ccc;
+}
