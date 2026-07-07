@@ -18,7 +18,9 @@
 .alabuga-channel-label {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   margin-left: 6px;
+  margin-right: 4px;
   padding: 1px 6px;
   border-radius: 4px;
   background: #3d1515;
@@ -29,6 +31,47 @@
   line-height: 1.4;
   vertical-align: middle;
   white-space: nowrap;
+  width: max-content;
+}
+
+ytd-miniplayer .alabuga-channel-label,
+ytd-miniplayer-info-bar .alabuga-channel-label {
+  font-size: 10px;
+  margin-left: 4px;
+  padding: 0 5px;
+}
+
+yt-page-header-view-model .alabuga-channel-label,
+yt-page-header-renderer .alabuga-channel-label,
+#page-header .alabuga-channel-label,
+#page-header-container .alabuga-channel-label {
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  vertical-align: baseline;
+}
+
+#byline-container .alabuga-channel-label,
+#metadata-line .alabuga-channel-label,
+yt-content-metadata-view-model .alabuga-channel-label,
+yt-lockup-metadata-view-model .alabuga-channel-label,
+ytd-video-meta-block .alabuga-channel-label {
+  display: inline-flex;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+#byline-container,
+#metadata-line,
+yt-lockup-metadata-view-model {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.alabuga-channel-name-mark {
+  display: inline-flex;
+  align-items: center;
+  max-width: max-content;
 }
 
 .alabuga-ad-badge {

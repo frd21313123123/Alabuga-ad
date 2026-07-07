@@ -58,11 +58,16 @@ async function refreshBlocklist() {
 }
 
 async function ensureDefaults() {
-  const stored = await browser.storage.local.get(["enabled", "blocklist", "adVideoIds"]);
+  const stored = await browser.storage.local.get([
+    "enabled",
+    "blocklist",
+    "channelNames",
+    "adVideoIds",
+  ]);
   if (stored.enabled === undefined) {
     await browser.storage.local.set({ enabled: true });
   }
-  if (!stored.blocklist?.length || !stored.adVideoIds?.length) {
+  if (!stored.blocklist?.length || !stored.channelNames?.length || !stored.adVideoIds?.length) {
     await refreshBlocklist();
   }
 }
