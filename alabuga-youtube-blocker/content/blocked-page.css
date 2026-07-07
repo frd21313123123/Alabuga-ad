@@ -51,6 +51,16 @@ yt-page-header-renderer .alabuga-channel-label,
   vertical-align: baseline;
 }
 
+yt-page-header-view-model .alabuga-channel-label--header,
+yt-page-header-renderer .alabuga-channel-label--header,
+#page-header .alabuga-channel-label--header,
+#page-header-container .alabuga-channel-label--header {
+  display: flex;
+  align-self: flex-start;
+  margin: 4px 0 0;
+  width: fit-content;
+}
+
 #byline-container .alabuga-channel-label,
 #metadata-line .alabuga-channel-label,
 yt-content-metadata-view-model .alabuga-channel-label,

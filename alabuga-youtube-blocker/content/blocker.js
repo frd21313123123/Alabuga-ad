@@ -412,9 +412,9 @@ const FALLBACK_LABEL_HOST_SELECTORS = [
   "h1",
 ].join(",");
 
-function createChannelLabel() {
+function createChannelLabel(extraClass = "") {
   const label = document.createElement("span");
-  label.className = "alabuga-channel-label";
+  label.className = ["alabuga-channel-label", extraClass].filter(Boolean).join(" ");
   label.textContent = CHANNEL_LABEL_TEXT;
   return label;
 }
@@ -438,8 +438,145 @@ function isVideoCardScope(scope) {
   if (!(scope instanceof Element)) return false;
   return !!(
     scope.matches?.(CARD_SELECTORS) &&
-    !scope.matches?.("ytd-channel-renderer, ytd-grid-channel-renderer")
+    !isChannelCardScope(scope)
   );
+}
+
+function hasVideoLink(element) {
+  return !!deepQuerySelector(
+    'a[href*="/watch"], a[href*="/shorts/"], a[href*="youtu.be/"]',
+    element
+  );
+}
+
+function hasChannelLink(element) {
+  return deepQuerySelectorAll("a[href]", element).some((link) => isChannelHref(getLinkHref(link)));
+}
+
+function hasSubscribeActionText(element) {
+  return /(подписаться|subscribe)/i.test(getCleanText(element));
+}
+
+function isChannelCardScope(scope) {
+  if (!(scope instanceof Element)) return false;
+  if (scope.matches?.("ytd-channel-renderer, ytd-grid-channel-renderer")) return true;
+
+  if (scope.matches?.("yt-lockup-view-model, ytd-rich-item-renderer")) {
+    return !hasVideoLink(scope) && (hasChannelLink(scope) || hasSubscribeActionText(scope));
+  }
+
+  return false;
+}
+
+function addChannelNameCandidate(info, text) {
+  const channelNames = new Set(info.channelNames || []);
+  if (info.channelName) channelNames.add(normalizeChannelName(info.channelName));
+
+  const rawText = addNormalizedChannelCandidate(channelNames, text);
+  if (rawText && !info.channelName && !rawText.startsWith("@")) {
+    info.channelName = rawText;
+  }
+
+  info.channelNames = channelNames;
+  return rawText;
+}
+
+function addChannelUrlCandidate(info, href) {
+  if (!href || !isChannelHref(href)) return info;
+
+  const channelNames = new Set(info.channelNames || []);
+  if (info.channelName) channelNames.add(normalizeChannelName(info.channelName));
+
+  const channelId = extractChannelIdFromHref(href);
+  if (channelId) info.channelId = info.channelId || channelId;
+
+  const handleMatch = href.match(/\/(@[^/?#]+)/);
+  if (handleMatch) {
+    addNormalizedChannelCandidate(channelNames, safelyDecodeURIComponent(handleMatch[1]));
+  }
+
+  info.channelNames = channelNames;
+  return info;
+}
+
+function extractChannelCardNameFromText(text) {
+  const compactText = stripInjectedMarkerText(text).replace(/\s+/g, " ").trim();
+  if (!compactText) return "";
+
+  const subscriberMatch = compactText.match(
+    /^(.+?)(?=\s*[\d\s.,]+(?:тыс\.?|млн|млрд|k|m|b)?\s*(?:подписчик|subscribers?))/i
+  );
+  if (subscriberMatch?.[1]) return subscriberMatch[1].trim();
+
+  return compactText
+    .replace(/\s+(?:подписаться|subscribe)\b.*$/i, "")
+    .split(/[•|]/)[0]
+    .trim();
+}
+
+function extractChannelInfoFromStructuredValue(info, value, depth = 0, seen = new Set()) {
+  if (!value || depth > 4) return info;
+
+  if (typeof value === "string") {
+    if (/^UC[\w-]+$/.test(value)) {
+      info.channelId = info.channelId || value;
+      return info;
+    }
+
+    info = addChannelUrlCandidate(info, value);
+    const handleMatch = value.match(/\/(@[^/?#]+)/);
+    if (handleMatch) {
+      addChannelNameCandidate(info, safelyDecodeURIComponent(handleMatch[1]));
+    }
+    return info;
+  }
+
+  if (typeof value !== "object" || seen.has(value)) return info;
+  seen.add(value);
+
+  for (const [key, child] of Object.entries(value)) {
+    if (!child) continue;
+
+    if (
+      typeof child === "string" &&
+      /^(browseId|channelId|externalId|webPageType|url|canonicalBaseUrl|vanityChannelUrl|simpleText|text|label)$/i.test(key)
+    ) {
+      if (/^(browseId|channelId|externalId)$/i.test(key) && /^UC[\w-]+$/.test(child)) {
+        info.channelId = info.channelId || child;
+      } else if (/^(url|canonicalBaseUrl|vanityChannelUrl)$/i.test(key)) {
+        info = addChannelUrlCandidate(info, child);
+      } else if (/^(simpleText|text|label)$/i.test(key)) {
+        addChannelNameCandidate(info, extractChannelCardNameFromText(child) || child);
+      }
+      continue;
+    }
+
+    info = extractChannelInfoFromStructuredValue(info, child, depth + 1, seen);
+  }
+
+  return info;
+}
+
+function extractChannelInfoFromElementData(info, element) {
+  const sources = [];
+  const elements = getUniqueElements(
+    [element],
+    deepQuerySelectorAll("a, yt-lockup-view-model, yt-lockup-metadata-view-model, yt-button-view-model", element)
+  );
+
+  elements.slice(0, 40).forEach((node) => {
+    ["data", "endpoint", "navigationEndpoint", "command", "urlEndpoint"].forEach((key) => {
+      try {
+        if (node[key]) sources.push(node[key]);
+      } catch (_) {}
+    });
+  });
+
+  sources.slice(0, 20).forEach((source) => {
+    info = extractChannelInfoFromStructuredValue(info, source);
+  });
+
+  return info;
 }
 
 function getEnrichedPageChannelInfo() {
@@ -468,6 +605,7 @@ function getEnrichedPageChannelInfo() {
     }
   } catch (_) {}
 
+  info.channelId = info.channelId || extractChannelIdFromPageMetadata();
   info.channelNames = channelNames;
   return info;
 }
@@ -481,6 +619,71 @@ function findPageHeaderLabelTarget(headerScope) {
     deepQuerySelector("ytd-channel-name #text, #channel-name #text, #text-container", headerScope) ||
     deepQuerySelector("ytd-channel-name, #channel-name", headerScope)
   );
+}
+
+function findPageHeaderLabelPlacement(headerScope) {
+  const titleHost = deepQuerySelector(
+    [
+      "yt-dynamic-text-view-model.ytPageHeaderViewModelTitle",
+      ".ytPageHeaderViewModelTitle",
+      "h1.dynamicTextViewModelH1",
+    ].join(","),
+    headerScope
+  );
+
+  if (titleHost) {
+    return {
+      target:
+        deepQuerySelector("h1 .ytAttributedStringHost, h1 .yt-core-attributed-string, h1", titleHost) ||
+        titleHost,
+      insertAfter: titleHost,
+    };
+  }
+
+  const target = findPageHeaderLabelTarget(headerScope);
+  return target ? { target, insertAfter: target } : null;
+}
+
+function getPageHeaderScopes() {
+  const selectorGroups = [
+    "yt-page-header-view-model",
+    "yt-page-header-renderer",
+    "ytd-page-header-renderer",
+    "ytd-c4-tabbed-header-renderer",
+    "#channel-header",
+    "#page-header",
+    "#page-header-container",
+  ];
+
+  for (const selector of selectorGroups) {
+    const scopes = deepQueryAllDocument(selector);
+    if (scopes.length) return getUniqueElements(scopes);
+  }
+
+  return [];
+}
+
+function getDocumentMetadataValue(selector, attribute) {
+  return document.querySelector(selector)?.getAttribute(attribute) || "";
+}
+
+function extractChannelIdFromPageMetadata() {
+  const directId = getDocumentMetadataValue('meta[itemprop="channelId"]', "content");
+  if (/^UC[\w-]+$/.test(directId)) return directId;
+
+  const pageUrls = [
+    getDocumentMetadataValue('meta[property="og:url"]', "content"),
+    getDocumentMetadataValue('meta[itemprop="url"]', "content"),
+    getDocumentMetadataValue('link[rel="canonical"]', "href"),
+    getDocumentMetadataValue('link[itemprop="url"]', "href"),
+  ];
+
+  for (const pageUrl of pageUrls) {
+    const channelId = extractChannelIdFromHref(pageUrl);
+    if (channelId) return channelId;
+  }
+
+  return null;
 }
 
 function stripInjectedMarkerText(text) {
@@ -567,8 +770,51 @@ function isLikelyChannelIdentity(rawText, normalized) {
   return !(
     /[•\n\r]/.test(rawText) ||
     /https?:\/\//i.test(rawText) ||
-    /(подписчик|subscribers?|просмотр|views?|видео|videos?|назад|ago)/i.test(normalized)
+    /(подписчик|подписаться|subscribers?|subscribe|просмотр|views?|видео|videos?|назад|ago)/i.test(normalized)
   );
+}
+
+function extractChannelInfoFromChannelCard(element, info) {
+  const cardScope = isChannelCardScope(element) ? element : deepClosest(element, CARD_SELECTORS);
+  if (!isChannelCardScope(cardScope)) return info;
+
+  findUploaderLinks(cardScope).forEach((link) => {
+    info = ingestChannelLink(info, link);
+    addChannelNameCandidate(info, extractChannelNameFromAriaLabel(link.getAttribute?.("aria-label")));
+    addChannelNameCandidate(info, link.getAttribute?.("title"));
+  });
+
+  deepQuerySelectorAll("img[alt]", cardScope).forEach((image) => {
+    addChannelNameCandidate(info, image.getAttribute("alt"));
+  });
+
+  deepQuerySelectorAll(
+    [
+      "yt-lockup-metadata-view-model a[href]",
+      "yt-lockup-metadata-view-model [role='heading']",
+      "yt-lockup-metadata-view-model yt-attributed-string",
+      "yt-lockup-metadata-view-model .ytAttributedStringHost",
+      "yt-lockup-metadata-view-model .yt-core-attributed-string",
+      "yt-lockup-metadata-view-model yt-formatted-string",
+      "yt-lockup-metadata-view-model #text",
+      "yt-dynamic-text-view-model",
+      "yt-attributed-string",
+      ".ytAttributedStringHost",
+      ".yt-core-attributed-string",
+      "ytd-channel-name #text",
+      "#channel-name #text",
+      "#text",
+      "h3",
+    ].join(","),
+    cardScope
+  ).forEach((nameEl) => {
+    addChannelNameCandidate(info, nameEl.getAttribute?.("title"));
+    addChannelNameCandidate(info, extractChannelNameFromAriaLabel(nameEl.getAttribute?.("aria-label")));
+    addChannelNameCandidate(info, nameEl.textContent || "");
+  });
+
+  addChannelNameCandidate(info, extractChannelCardNameFromText(cardScope.textContent || ""));
+  return extractChannelInfoFromElementData(info, cardScope);
 }
 
 function extractChannelInfoFromElement(element) {
@@ -591,6 +837,7 @@ function extractChannelInfoFromElement(element) {
     addNormalizedChannelCandidate(info.channelNames, channelNameText.getAttribute?.("aria-label"));
   }
 
+  info = extractChannelInfoFromChannelCard(element, info);
   info = extractLockupChannelInfo(element, info);
 
   const channelNameRoots = getUniqueElements(
@@ -621,7 +868,8 @@ function extractChannelInfoFromElement(element) {
 }
 
 function enrichFromPageChannelContext(info, element) {
-  if (!deepClosest(element, CARD_SELECTORS) || !isOnChannelPage()) return info;
+  const cardScope = deepClosest(element, CARD_SELECTORS);
+  if (!cardScope || !isOnChannelPage() || isChannelCardScope(cardScope)) return info;
 
   const pageInfo = getEnrichedPageChannelInfo();
   const channelNames = new Set(info.channelNames || []);
@@ -757,12 +1005,45 @@ function updateAllMarkedVisuals() {
   document.querySelectorAll("[data-alabuga-video-marked]").forEach(updateMarkedElementVisuals);
 }
 
+function findChannelCardTitleTarget(scope) {
+  return (
+    deepQuerySelector(
+      [
+        "yt-lockup-metadata-view-model a[href] yt-attributed-string",
+        "yt-lockup-metadata-view-model a[href] .ytAttributedStringHost",
+        "yt-lockup-metadata-view-model a[href] .yt-core-attributed-string",
+        "yt-lockup-metadata-view-model [role='heading']",
+        "yt-lockup-metadata-view-model yt-attributed-string",
+        "yt-lockup-metadata-view-model .ytAttributedStringHost",
+        "yt-lockup-metadata-view-model .yt-core-attributed-string",
+        "ytd-channel-name #text",
+        "#channel-name #text",
+        "#text",
+        "h3",
+      ].join(","),
+      scope
+    ) || null
+  );
+}
+
 function findChannelLabelTarget(element) {
   const scope =
     deepClosest(element, CARD_SELECTORS) ||
     deepClosest(element, CHANNEL_LABEL_SCOPE_SELECTORS) ||
     deepClosest(element, CHANNEL_SURFACE_SELECTORS) ||
     element;
+
+  if (isChannelCardScope(scope)) {
+    const channelCardTarget = findChannelCardTitleTarget(scope);
+    if (channelCardTarget) {
+      return {
+        scope,
+        root: channelCardTarget,
+        target: channelCardTarget,
+        labelHost: channelCardTarget.parentElement || scope,
+      };
+    }
+  }
 
   const uploaderLink = findPrimaryUploaderLink(scope);
   if (uploaderLink) {
@@ -819,7 +1100,6 @@ function findChannelLabelTarget(element) {
 function enrichChannelInfoFromPageData(info, element) {
   const channelNames = new Set(info.channelNames || []);
   if (info.channelName) channelNames.add(normalizeChannelName(info.channelName));
-  if (isOnChannelPage()) addPagePathChannelCandidates(channelNames);
 
   const inPageHeader =
     isPageHeaderElement(element) ||
@@ -829,6 +1109,8 @@ function enrichChannelInfoFromPageData(info, element) {
 
   try {
     if (inPageHeader) {
+      addPagePathChannelCandidates(channelNames);
+
       const data = getPageWindow().ytInitialData;
       const metadata = data?.metadata?.channelMetadataRenderer;
       if (metadata?.externalId) info.channelId = info.channelId || metadata.externalId;
@@ -1072,29 +1354,29 @@ function markChannelProfileHeader() {
 
   const pageInfo = getEnrichedPageChannelInfo();
   const channelBlocked = isChannelBlocked(pageInfo);
-  const headerScopes = deepQueryAllDocument(PAGE_HEADER_SCOPE_SELECTORS);
+  const allHeaderScopes = deepQueryAllDocument(PAGE_HEADER_SCOPE_SELECTORS);
+  const headerScopes = getPageHeaderScopes();
   const markedScopes = new Set();
+
+  allHeaderScopes.forEach((headerScope) => {
+    cleanupChannelLabels(headerScope);
+    delete headerScope.dataset.alabugaChannelMarked;
+    delete headerScope.dataset.alabugaLabelAttached;
+    headerScope.classList?.remove("alabuga-marked-channel");
+  });
+
+  if (!channelBlocked) return;
 
   headerScopes.forEach((headerScope) => {
     if (markedScopes.has(headerScope)) return;
     markedScopes.add(headerScope);
 
-    if (!channelBlocked) {
-      cleanupChannelLabels(headerScope);
-      delete headerScope.dataset.alabugaChannelMarked;
-      delete headerScope.dataset.alabugaLabelAttached;
-      headerScope.classList?.remove("alabuga-marked-channel");
-      return;
-    }
+    const placement = findPageHeaderLabelPlacement(headerScope);
+    const label = createChannelLabel("alabuga-channel-label--header");
 
-    cleanupChannelLabels(headerScope);
-
-    const target = findPageHeaderLabelTarget(headerScope);
-    const label = createChannelLabel();
-
-    if (target) {
-      target.classList?.add("alabuga-channel-name-mark");
-      target.insertAdjacentElement("afterend", label);
+    if (placement?.target && placement?.insertAfter) {
+      placement.target.classList?.add("alabuga-channel-name-mark");
+      placement.insertAfter.insertAdjacentElement("afterend", label);
     } else {
       const host = resolveFallbackLabelHost(headerScope);
       if (!host) return;
@@ -1118,6 +1400,7 @@ function getPageWindow() {
 
 function getChannelInfoFromPage() {
   const path = location.pathname;
+  const metadataChannelId = extractChannelIdFromPageMetadata();
 
   const channelMatch = path.match(/^\/channel\/(UC[\w-]+)/);
   if (channelMatch) {
@@ -1134,6 +1417,10 @@ function getChannelInfoFromPage() {
         return { channelId: null, channelName: player.videoDetails.author };
       }
     } catch (_) {}
+
+    if (metadataChannelId) {
+      return { channelId: metadataChannelId, channelName: null };
+    }
 
     const meta = document.querySelector('meta[itemprop="channelId"]');
     if (meta?.content) {
@@ -1154,10 +1441,10 @@ function getChannelInfoFromPage() {
   if (path.match(/^\/@[^/]+/)) {
     try {
       const data = getPageWindow().ytInitialData;
-      const id = data?.metadata?.channelMetadataRenderer?.externalId;
-      if (id) return { channelId: id, channelName: null };
-      const title = data?.metadata?.channelMetadataRenderer?.title;
-      if (title) return { channelId: null, channelName: title };
+      const metadata = data?.metadata?.channelMetadataRenderer;
+      const id = metadata?.externalId || metadataChannelId;
+      const title = metadata?.title || null;
+      if (id || title) return { channelId: id || null, channelName: title };
     } catch (_) {}
 
     const channelNameEl =
@@ -1182,7 +1469,11 @@ function getChannelInfoFromPage() {
         ].join(",")
       );
     if (channelNameEl?.textContent?.trim()) {
-      return { channelId: null, channelName: channelNameEl.textContent.trim() };
+      return { channelId: metadataChannelId || null, channelName: channelNameEl.textContent.trim() };
+    }
+
+    if (metadataChannelId) {
+      return { channelId: metadataChannelId, channelName: null };
     }
   }
 
@@ -1199,6 +1490,7 @@ function getChannelInfoFromPage() {
   );
   if (pageHeader) {
     const info = extractChannelInfoFromElement(pageHeader);
+    info.channelId = info.channelId || metadataChannelId;
     if (info.channelId || info.channelName || info.channelNames?.size) return info;
   }
 
